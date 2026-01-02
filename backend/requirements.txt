@@ -1,0 +1,16 @@
+llama-index
+llama-index-experimental
+pandas
+matplotlib
+seaborn
+plotly
+kaleido
+openpyxl
+python-dotenv
+llama-index-llms-groq
+openai
+fpdf
+python-pptx
+fastapi
+uvicorn
+httpx
