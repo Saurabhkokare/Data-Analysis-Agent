@@ -563,3 +563,257 @@
         flex-direction: column;
     }
 }
+
+/* ============================================
+   MAIN HUB STYLES
+   ============================================ */
+.hub-container {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.hub-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 32px;
+    background: rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--auth-border);
+}
+
+.nav-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.home-link {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--auth-text-muted);
+    text-decoration: none;
+    font-weight: 500;
+    padding: 8px 12px;
+    border-radius: 8px;
+    transition: all 0.2s;
+}
+
+.home-link:hover {
+    color: var(--auth-text);
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.home-icon {
+    font-size: 18px;
+}
+
+.nav-divider {
+    color: var(--auth-border);
+}
+
+.hub-nav .nav-logo {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--auth-text);
+}
+
+.nav-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.user-avatar-small {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 2px solid var(--auth-primary);
+}
+
+.nav-right .user-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--auth-text);
+}
+
+.logout-btn-hub {
+    padding: 8px 16px;
+    background: rgba(239, 68, 68, 0.2);
+    color: #fca5a5;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.logout-btn-hub:hover {
+    background: rgba(239, 68, 68, 0.3);
+}
+
+.hub-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+}
+
+.hub-header {
+    text-align: center;
+    margin-bottom: 48px;
+}
+
+.hub-header h1 {
+    font-size: 36px;
+    font-weight: 700;
+    color: var(--auth-text);
+    margin-bottom: 12px;
+}
+
+.hub-header p {
+    font-size: 18px;
+    color: var(--auth-text-muted);
+}
+
+.agent-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 24px;
+    max-width: 800px;
+    width: 100%;
+}
+
+.agent-card {
+    background: var(--auth-card-bg);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--auth-border);
+    border-radius: 20px;
+    padding: 32px;
+    text-decoration: none;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.agent-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+    background: var(--card-color);
+    transition: width 0.3s ease;
+}
+
+.agent-card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    border-color: var(--card-color);
+}
+
+.agent-card:hover::before {
+    width: 8px;
+}
+
+.agent-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+}
+
+.agent-card h3 {
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--auth-text);
+    margin-bottom: 8px;
+}
+
+.agent-card p {
+    font-size: 14px;
+    color: var(--auth-text-muted);
+    line-height: 1.5;
+    margin-bottom: 16px;
+}
+
+.agent-arrow {
+    position: absolute;
+    bottom: 24px;
+    right: 24px;
+    font-size: 24px;
+    color: var(--card-color);
+    opacity: 0;
+    transform: translateX(-10px);
+    transition: all 0.3s ease;
+}
+
+.agent-card:hover .agent-arrow {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.hub-footer {
+    margin-top: 32px;
+    text-align: center;
+}
+
+.hub-footer p {
+    color: var(--auth-text-muted);
+    font-size: 14px;
+}
+
+.chat-link {
+    color: var(--auth-primary);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.chat-link:hover {
+    text-decoration: underline;
+}
+
+/* Agent Page Specific Styles */
+.agent-page .home-btn,
+.agent-page .back-btn {
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--auth-border);
+    border-radius: 8px;
+    color: var(--auth-text);
+    text-decoration: none;
+    font-size: 14px;
+    transition: all 0.2s;
+    margin-right: 8px;
+}
+
+.agent-page .home-btn:hover,
+.agent-page .back-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.agent-page .header-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Responsive Hub */
+@media (max-width: 768px) {
+    .hub-nav {
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .agent-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .hub-header h1 {
+        font-size: 28px;
+    }
+}
