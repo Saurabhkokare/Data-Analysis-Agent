@@ -47,7 +47,7 @@ export const SignUp: React.FC = () => {
         setLoading(false);
 
         if (success) {
-            navigate('/chat');
+            navigate('/hub');
         } else {
             setError('Email already exists');
         }

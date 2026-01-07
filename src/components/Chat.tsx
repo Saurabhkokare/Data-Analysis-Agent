@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { api, AnalysisResponse } from '../services/api';
+import { api, AnalysisResponse, ImageData, AgentType } from '../services/api';
 import '../styles/Chat.css';
 
 interface Message {
@@ -10,6 +10,7 @@ interface Message {
   content: string;
   timestamp: Date;
   images?: string[];
+  imageData?: ImageData[];  // New: images with title and description
   pdfPath?: string;
   pptPath?: string;
   dashboardPath?: string;
@@ -46,6 +47,7 @@ export const Chat: React.FC = () => {
   const [dragActive, setDragActive] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -53,6 +55,7 @@ export const Chat: React.FC = () => {
   const [latestPpt, setLatestPpt] = useState<string | null>(null);
   const [latestDashboard, setLatestDashboard] = useState<string | null>(null);
   const [showDashboard, setShowDashboard] = useState(false);
+  const [selectedAgent, setSelectedAgent] = useState<AgentType>('auto');
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -109,10 +112,10 @@ export const Chat: React.FC = () => {
       let response: AnalysisResponse;
 
       if (uploadedFile) {
-        response = await api.uploadAndAnalyze(uploadedFile, input);
+        response = await api.uploadAndAnalyze(uploadedFile, input, selectedAgent);
         setUploadedFile(null);
       } else {
-        response = await api.analyzeWithExistingData(input);
+        response = await api.analyzeWithExistingData(input, selectedAgent);
       }
 
       if (response.pdf_path) setLatestPdf(response.pdf_path);
@@ -125,6 +128,7 @@ export const Chat: React.FC = () => {
         content: response.response,
         timestamp: new Date(),
         images: response.image_paths,
+        imageData: response.images,  // New: includes title and description
         pdfPath: response.pdf_path,
         pptPath: response.ppt_path,
         dashboardPath: response.dashboard_path,
@@ -212,6 +216,8 @@ export const Chat: React.FC = () => {
 
       <div className="chat-header">
         <div className="header-left">
+          <Link to="/" className="home-btn" title="Home">🏠</Link>
+          <Link to="/hub" className="back-btn" title="Back to Hub">← Hub</Link>
           <span className="header-logo">📊</span>
           <h1>Data Analysis Agent</h1>
           <button
@@ -236,27 +242,27 @@ export const Chat: React.FC = () => {
               <button
                 className="header-report-btn pdf-btn"
                 onClick={() => handleDownloadReport(latestPdf)}
-                title={`Download: ${latestPdf.split('/').pop()}`}
+                title="Download PDF Report"
               >
-                📄 {latestPdf.split('/').pop()?.replace('.pdf', '') || 'PDF Report'}
+                📄 PDF
               </button>
             )}
             {latestPpt && (
               <button
                 className="header-report-btn ppt-btn"
                 onClick={() => handleDownloadReport(latestPpt)}
-                title={`Download: ${latestPpt.split('/').pop()}`}
+                title="Download PowerPoint"
               >
-                📊 {latestPpt.split('/').pop()?.replace('.pptx', '') || 'PPT'}
+                📊 PPT
               </button>
             )}
             {latestDashboard && (
               <button
                 className="header-report-btn dashboard-btn"
                 onClick={() => handleOpenDashboard(latestDashboard)}
-                title={`Open: ${latestDashboard.split('/').pop()}`}
+                title="Open Dashboard"
               >
-                📈 {latestDashboard.split('/').pop()?.replace('.html', '') || 'Dashboard'}
+                📈 Dashboard
               </button>
             )}
           </div>
@@ -305,15 +311,35 @@ export const Chat: React.FC = () => {
                 <div className="message-text" style={{ whiteSpace: 'pre-wrap' }}>
                   {message.type === 'assistant' ? cleanMarkdown(message.content) : message.content}
                 </div>
-                {message.images && message.images.length > 0 && (
+                {/* Display images with titles and descriptions */}
+                {message.imageData && message.imageData.length > 0 ? (
+                  <div className="message-images">
+                    {message.imageData.map((img, idx) => (
+                      <div key={idx} className="image-card">
+                        <div className="image-card-header">
+                          <span className="image-title">📊 {img.title}</span>
+                        </div>
+                        <img
+                          src={img.url}
+                          alt={img.title}
+                          className="analysis-image"
+                        />
+                        <div className="image-description">
+                          {img.description}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : message.images && message.images.length > 0 && (
                   <div className="message-images">
                     {message.images.map((imgPath, idx) => (
-                      <img
-                        key={idx}
-                        src={imgPath}
-                        alt={`Analysis ${idx + 1}`}
-                        className="analysis-image"
-                      />
+                      <div key={idx} className="image-card">
+                        <img
+                          src={imgPath}
+                          alt={`Analysis ${idx + 1}`}
+                          className="analysis-image"
+                        />
+                      </div>
                     ))}
                   </div>
                 )}
@@ -407,19 +433,63 @@ export const Chat: React.FC = () => {
           )}
         </div>
 
-        <div className="input-row">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask me anything about your data..."
+        {/* Agent Type Selector */}
+        <div className="agent-selector">
+          <label className="agent-selector-label">Agent:</label>
+          <select
+            value={selectedAgent}
+            onChange={(e) => setSelectedAgent(e.target.value as AgentType)}
+            className="agent-dropdown"
             disabled={loading}
-            className="chat-input"
+          >
+            <option value="auto">🔄 Auto Detect</option>
+            <option value="data_analysis">📊 Data Analysis & Graphs</option>
+            <option value="pdf">📄 PDF Report</option>
+            <option value="ppt">📑 PowerPoint</option>
+            <option value="dashboard">📈 Dashboard</option>
+          </select>
+        </div>
+
+        <div className="input-row">
+          <textarea
+            ref={textareaRef}
+            value={input}
+            onChange={(e) => {
+              setInput(e.target.value);
+              // Auto-resize textarea
+              if (textareaRef.current) {
+                textareaRef.current.style.height = 'auto';
+                textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 250) + 'px';
+              }
+            }}
+            onKeyDown={(e) => {
+              // Submit on Enter (without Shift)
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                if (input.trim() && !loading) {
+                  handleSendMessage(e as any);
+                  // Reset textarea height
+                  if (textareaRef.current) {
+                    textareaRef.current.style.height = 'auto';
+                  }
+                }
+              }
+            }}
+            placeholder="Ask me anything about your data... (Shift+Enter for new line)"
+            disabled={loading}
+            className="chat-input chat-textarea"
+            rows={1}
           />
           <button
             type="submit"
             disabled={loading || !input.trim()}
             className="send-btn"
+            onClick={() => {
+              // Reset textarea height on submit
+              if (textareaRef.current) {
+                textareaRef.current.style.height = 'auto';
+              }
+            }}
           >
             {loading ? '⏳' : '➤'}
           </button>

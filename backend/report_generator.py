@@ -454,17 +454,108 @@ def create_ppt_report(report_data, image_paths=None, output_filename=None, title
     prs.slide_width = Inches(13.333)
     prs.slide_height = Inches(7.5)
     
+    # Helper function to extract sections from paragraph content
+    def parse_content_into_slides(content_text, presentation_title):
+        """
+        Parse user content intelligently into slides with unique titles.
+        Looks for headers, numbered sections, or creates meaningful titles.
+        """
+        slides_data = []
+        content_text = clean_text(str(content_text))
+        
+        # Try to split by common section markers
+        # Look for patterns like: "1.", "Section:", "Topic:", headers with :
+        import re
+        
+        # Pattern 1: Numbered sections (1., 2., etc.)
+        numbered_pattern = r'(?:^|\n)(\d+\.?\s*)([^\n:]+[:\n])'
+        
+        # Pattern 2: Sections with colons (Topic: content)
+        colon_pattern = r'(?:^|\n)([A-Z][^:\n]{2,40}):\s*'
+        
+        # Try to find natural section breaks
+        lines = content_text.split('\n')
+        current_section_title = None
+        current_section_content = []
+        slide_index = 1
+        
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            
+            # Check if this line looks like a title/header
+            is_title = False
+            new_title = None
+            
+            # Numbered section (1. Topic, 2. Topic)
+            num_match = re.match(r'^(\d+)[.)\s]+(.+)$', line)
+            if num_match:
+                is_title = True
+                new_title = num_match.group(2).strip()[:45]
+            
+            # Colon-based section (Topic: content)
+            elif ':' in line and len(line.split(':')[0]) < 40:
+                parts = line.split(':', 1)
+                if len(parts[0]) > 3 and parts[0][0].isupper():
+                    is_title = True
+                    new_title = parts[0].strip()[:45]
+                    # Add the content after colon to current
+                    if parts[1].strip():
+                        current_section_content.append(parts[1].strip())
+            
+            # All caps line (likely a header)
+            elif line.isupper() and len(line) > 3 and len(line) < 50:
+                is_title = True
+                new_title = line.title()[:45]
+            
+            if is_title and new_title:
+                # Save previous section if exists
+                if current_section_content:
+                    slides_data.append({
+                        'title': current_section_title or f"Section {slide_index}",
+                        'content': current_section_content.copy()
+                    })
+                    slide_index += 1
+                
+                current_section_title = new_title
+                current_section_content = []
+            else:
+                # Add as content
+                current_section_content.append(line)
+        
+        # Don't forget the last section
+        if current_section_content:
+            slides_data.append({
+                'title': current_section_title or f"Content",
+                'content': current_section_content.copy()
+            })
+        
+        # If no sections were found, split content into chunks with generated titles
+        if not slides_data:
+            all_lines = [l.strip() for l in lines if l.strip()]
+            chunk_size = 8  # 8 points per slide
+            for i in range(0, len(all_lines), chunk_size):
+                chunk = all_lines[i:i+chunk_size]
+                # Generate title from first line or index
+                if chunk:
+                    first_line = chunk[0][:40].replace('•', '').replace('-', '').strip()
+                    title = first_line if first_line and len(first_line) > 5 else f"Key Points {i//chunk_size + 1}"
+                    slides_data.append({
+                        'title': title,
+                        'content': chunk
+                    })
+        
+        return slides_data
+    
     # Parse content into sections if string
     if isinstance(report_data, str):
-        # Split by double newlines to get sections
-        sections = [s.strip() for s in report_data.split('\n\n') if s.strip()]
-        if not sections:
-            sections = [report_data]
-        # Generate title from first line if not provided
+        # Use intelligent parsing
+        sections = parse_content_into_slides(report_data, title or "Presentation")
+        
+        # Generate title from first section if not provided
         if not title and sections:
-            first_section = sections[0]
-            first_line = first_section.split('\n')[0][:60]
-            title = first_line if first_line else "Presentation"
+            title = sections[0].get('title', 'Presentation')[:60]
     else:
         # Convert dict to list of (title, content) tuples
         sections = []
@@ -472,19 +563,22 @@ def create_ppt_report(report_data, image_paths=None, output_filename=None, title
             if key not in ['image_descriptions', 'title'] and value:
                 section_title = key.replace('_', ' ').title()
                 if isinstance(value, list):
-                    sections.append((section_title, value))
+                    sections.append({'title': section_title, 'content': value})
                 else:
-                    sections.append((section_title, str(value)))
+                    sections.append({'title': section_title, 'content': str(value)})
         # Use provided title or generate from content
         if not title:
             title = report_data.get('title', 'Presentation')
     
     # Slide 1: Title slide with user-provided or generated title
-    add_title_slide(prs, title, "Generated Report")
+    add_title_slide(prs, title or "Presentation", "Generated Report")
     
     # Create slides dynamically based on content
     def add_dynamic_slide(prs, slide_title, content):
-        """Add a slide with content that fits within boundaries."""
+        """Add a slide with content that fits within boundaries.
+        Each point on new line, subpoints with proper indentation."""
+        from pptx.enum.text import MSO_AUTO_SIZE
+        
         slide_layout = prs.slide_layouts[6]  # Blank
         slide = prs.slides.add_slide(slide_layout)
         
@@ -509,35 +603,79 @@ def create_ppt_report(report_data, image_paths=None, output_filename=None, title
         p.font.bold = True
         p.font.color.rgb = RGBColor(255, 255, 255)
         
-        # Content area
+        # Content area - single text box with multiple paragraphs
+        content_box = slide.shapes.add_textbox(Inches(0.5), Inches(1.3), Inches(12), Inches(5.8))
+        tf = content_box.text_frame
+        tf.word_wrap = True
+        
         if isinstance(content, list):
-            # Bullet points - max 6 per slide, proper spacing
-            y_start = 1.3
-            line_height = 0.8
-            for i, point in enumerate(content[:6]):
-                point_box = slide.shapes.add_textbox(
-                    Inches(0.8), 
-                    Inches(y_start + i * line_height), 
-                    Inches(11.5), 
-                    Inches(0.7)
-                )
-                tf = point_box.text_frame
-                tf.word_wrap = True
-                p = tf.paragraphs[0]
-                point_text = clean_text(str(point))[:120]  # Limit each point
-                p.text = f"• {point_text}"
-                p.font.size = Pt(16)
+            # Process list items - each as separate paragraph
+            first_para = True
+            for i, point in enumerate(content[:12]):  # Max 12 points per slide
+                if first_para:
+                    p = tf.paragraphs[0]
+                    first_para = False
+                else:
+                    p = tf.add_paragraph()
+                
+                point_text = clean_text(str(point))
+                
+                # Check if this is a subpoint (starts with space, tab, or -)
+                is_subpoint = point_text.startswith('  ') or point_text.startswith('\t') or point_text.startswith('- ')
+                
+                if is_subpoint:
+                    # Subpoint - add indentation
+                    p.text = f"     ○ {point_text.strip().lstrip('-').strip()}"
+                    p.font.size = Pt(14)
+                    p.level = 1  # Indent level
+                else:
+                    # Main point
+                    p.text = f"• {point_text[:100]}"
+                    p.font.size = Pt(16)
+                    p.level = 0
+                
                 p.font.color.rgb = RGBColor(30, 41, 59)
+                p.space_after = Pt(12)  # Space between points
+                
         else:
-            # Paragraph content - limit to 400 chars per slide
-            content_box = slide.shapes.add_textbox(Inches(0.5), Inches(1.3), Inches(12), Inches(5.5))
-            tf = content_box.text_frame
-            tf.word_wrap = True
-            p = tf.paragraphs[0]
-            cleaned = clean_text(str(content))[:400]  # Strict limit
-            p.text = cleaned
-            p.font.size = Pt(16)
-            p.font.color.rgb = RGBColor(30, 41, 59)
+            # Paragraph content - parse line by line for proper formatting
+            content_text = clean_text(str(content))
+            lines = content_text.split('\n')
+            
+            first_para = True
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+                    
+                if first_para:
+                    p = tf.paragraphs[0]
+                    first_para = False
+                else:
+                    p = tf.add_paragraph()
+                
+                # Check for bullet points or subpoints
+                is_bullet = line.startswith('•') or line.startswith('-') or line.startswith('*')
+                is_subpoint = line.startswith('  ') or line.startswith('\t')
+                
+                if is_bullet:
+                    # Already a bullet - keep it
+                    p.text = line if line.startswith('•') else f"• {line.lstrip('-*').strip()}"
+                    p.font.size = Pt(16)
+                    p.level = 0
+                elif is_subpoint:
+                    # Subpoint
+                    p.text = f"     ○ {line.strip().lstrip('-*').strip()}"
+                    p.font.size = Pt(14)
+                    p.level = 1
+                else:
+                    # Regular text
+                    p.text = line[:150]
+                    p.font.size = Pt(16)
+                    p.level = 0
+                
+                p.font.color.rgb = RGBColor(30, 41, 59)
+                p.space_after = Pt(8)  # Space between lines
         
         return slide
     
@@ -545,7 +683,11 @@ def create_ppt_report(report_data, image_paths=None, output_filename=None, title
     slide_count = 1  # Already have title slide
     
     for section in sections:
-        if isinstance(section, tuple):
+        # Handle new dict format
+        if isinstance(section, dict):
+            sec_title = section.get('title', 'Content')
+            content = section.get('content', '')
+        elif isinstance(section, tuple):
             sec_title, content = section
         else:
             lines = str(section).split('\n')
@@ -556,32 +698,20 @@ def create_ppt_report(report_data, image_paths=None, output_filename=None, title
             continue
             
         # Split long content into multiple slides
-        if isinstance(content, str) and len(content) > 400:
-            # Split into chunks
-            words = content.split()
-            chunks = []
-            current_chunk = []
-            current_len = 0
-            
-            for word in words:
-                if current_len + len(word) > 350:
-                    chunks.append(' '.join(current_chunk))
-                    current_chunk = [word]
-                    current_len = len(word)
-                else:
-                    current_chunk.append(word)
-                    current_len += len(word) + 1
-            if current_chunk:
-                chunks.append(' '.join(current_chunk))
-            
-            for i, chunk in enumerate(chunks):
+        if isinstance(content, str) and len(content) > 500:
+            # Split into chunks by lines first
+            lines = content.split('\n')
+            chunk_lines = []
+            for i in range(0, len(lines), 10):  # 10 lines per slide
+                chunk = lines[i:i+10]
+                chunk_text = '\n'.join(chunk)
                 chunk_title = f"{sec_title}" if i == 0 else f"{sec_title} (cont.)"
-                add_dynamic_slide(prs, chunk_title, chunk)
+                add_dynamic_slide(prs, chunk_title, chunk_text)
                 slide_count += 1
         elif isinstance(content, list):
-            # Split list into groups of 6
-            for i in range(0, len(content), 6):
-                chunk = content[i:i+6]
+            # Split list into groups of 10 (more points per slide)
+            for i in range(0, len(content), 10):
+                chunk = content[i:i+10]
                 chunk_title = f"{sec_title}" if i == 0 else f"{sec_title} (cont.)"
                 add_dynamic_slide(prs, chunk_title, chunk)
                 slide_count += 1
